@@ -1,0 +1,53 @@
+; ELET0021 - Pisca-Pisca - Software
+#include <xc.inc>
+
+CONFIG  FOSC = HS, WDTE = OFF, PWRTE = OFF, BOREN = OFF, LVP = OFF, CPD = OFF, WRT = OFF, CP = OFF
+
+#define bank0   bcf STATUS, 5
+#define bank1   bsf STATUS, 5
+
+; --- Variáveis de Temporização ---
+psect   udata_bank0
+CONT1:  ds 1
+CONT2:  ds 1
+
+; --- Vetor de Reset ---
+psect   vectors, class=CODE, delta=2, abs
+org     0x0000
+    goto    setup
+
+; --- Código Principal ---
+psect   main_code, class=CODE, delta=2
+
+setup:
+    bank1
+    bcf     TRISD, 1        ; Configura RD1 como Saída (0 = Output)
+    bank0
+    clrf    PORTD           ; Garante que o LED inicie apagado
+
+loop:
+    bsf     PORTD, 1        ; LIGA o LED RD1
+    call    delay_250ms     ; Espera 0,25s
+    bcf     PORTD, 1        ; DESLIGA o LED RD1
+    call    delay_250ms     ; Espera 0,25s
+    goto    loop            ; Repeteco do processo
+
+; --- Rotina de Atraso ---
+delay_250ms:
+    movlw   250             ; Loop externo (250 repetições)
+    movwf   CONT1
+volta_ext:
+    movlw   250             ; Loop interno (250 repetições)
+    movwf   CONT2
+volta_int:
+    nop                     ; NOPs para engrossar o tempo
+    nop
+    nop
+    nop
+    nop
+    decfsz  CONT2, F        ; Subtrai 1 de CONT2
+    goto    volta_int       ; Volta para NOPs se não zerou
+    
+    decfsz  CONT1, F        ; Subtrai 1 de CONT1
+    goto    volta_ext       ; Volta para recarregar o CONT2
+    return                  ; Fim do atraso, volta pro Main

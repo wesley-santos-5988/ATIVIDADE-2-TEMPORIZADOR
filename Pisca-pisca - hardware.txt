@@ -1,0 +1,64 @@
+; ELET0021 - Pisca-Pisca - Hardware
+#include <xc.inc>
+
+CONFIG  FOSC = HS, WDTE = OFF, PWRTE = OFF, BOREN = OFF, LVP = OFF, CPD = OFF, WRT = OFF, CP = OFF
+
+#define bank0   bcf STATUS, 5
+#define bank1   bsf STATUS, 5
+
+; --- Variáveis ---
+psect   udata_bank0
+CONT_OVF: ds 1              ; Contador de estouros (Overflows) do Timer0
+
+; --- Vetores Absolutos ---
+psect   vectors, class=CODE, delta=2, abs
+org     0x0000
+    goto    setup
+
+org     0x0004
+    ; Rotina de Interrupção (ISR)
+    bank0
+    btfss   INTCON, 2       ; Confirma se a interrupção foi o Timer0 (T0IF)
+    goto    sai_int
+    bcf     INTCON, 2       ; Obrigatório: Limpa a flag T0IF
+    
+    movlw   6               ; Recarrega o Timer0 para contar 250 passos
+    movwf   TMR0
+    
+    ; Subtrai 1 da nossa variável de estouros
+    decfsz  CONT_OVF, F
+    goto    sai_int         ; Se não zerou, ainda não deu 250ms. Sai da INT.
+    ; CONT_OVF zerado = 125 estouros de 2ms = 250ms
+    movlw   125             ; Recarrega a variável para a próxima etapa
+    movwf   CONT_OVF
+    
+    ; Alterna o estado do LED RD1 usando a porta lógica XOR
+    movlw   0b00000010      
+    xorwf   PORTD, F        ; Inverte quem estava em 1 para 0, e 0 para 1
+    
+sai_int:
+    retfie                  ; Retorna ao processamento principal
+
+; --- Código Principal ---
+psect   main_code, class=CODE, delta=2
+
+setup:
+    bank1
+    bcf     TRISD, 1        ; RD1 como saída
+    movlw   0b11010011      
+    movwf   OPTION_REG
+    
+    bank0
+    clrf    PORTD           ; Inicia LED apagado
+    movlw   6               ; Carga inicial do TMR0
+    movwf   TMR0
+    movlw   125             ; Carga inicial do contador de estouros
+    movwf   CONT_OVF
+    
+    ; Habilita as Interrupções
+    bcf     INTCON, 2       ; Limpa a flag (T0IF) por segurança
+    bsf     INTCON, 5       ; Habilita interrupção do Timer0 (T0IE)
+    bsf     INTCON, 7       ; Habilita chave geral de interrupções (GIE)
+
+loop:
+    goto    loop
